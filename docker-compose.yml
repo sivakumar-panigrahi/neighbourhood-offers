@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: neighbourhood_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: neighbourhood
+      POSTGRES_PASSWORD: neighbourhood_password
+      POSTGRES_DB: neighbourhood
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neighbourhood -d neighbourhood"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: neighbourhood_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: "Neighbourhood Offers"
+      ENVIRONMENT: "production"
+      DATABASE_URL: "postgresql+psycopg://neighbourhood:neighbourhood_password@postgres:5432/neighbourhood"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000,http://localhost:80,http://localhost"
+      JWT_SECRET_KEY: "docker-compose-secret-key-change-in-production"
+      JWT_ALGORITHM: "HS256"
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 120
+      AI_PROVIDER: "fallback"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m scripts.seed &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: "http://localhost:8000"
+    container_name: neighbourhood_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    driver: local
