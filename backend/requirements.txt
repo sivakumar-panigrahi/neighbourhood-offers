@@ -7,5 +7,6 @@ pydantic-settings
 python-dotenv
 alembic
 pwdlib[bcrypt]
+argon2-cffi
 pyjwt
 pytest
